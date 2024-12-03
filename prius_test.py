@@ -4,7 +4,7 @@ from urdfenvs.urdf_common.bicycle_model import BicycleModel
 from collections import deque
 from heapq import heappush, heappop
 import time
-
+from mpscenes.obstacles.sphere_obstacle import SphereObstacle
 
 # Car parameters
 L = 2.5  # Length of the car (in meters)
@@ -25,11 +25,12 @@ def is_collision_free(x, y):
     # Use environment's methods to check the current position in the simulation.
     return True
 
-def car_model(x, y, theta, v, steering_angle, dt=0.1):
+def car_model(x, y, theta, v, steering_angle, dt=0.25):
     """Car dynamics model (bicycle model)."""
     if steering_angle != 0:
-        R = L / np.tan(steering_angle)  # Turning radius
-        dtheta = v / R
+        # R = L / np.tan(steering_angle)  # Turning radius
+        # dtheta = v / R
+        dtheta = v / L * np.tan(steering_angle)
     else:
         dtheta = 0 #go straigth
 
@@ -68,7 +69,7 @@ def car_model(x, y, theta, v, steering_angle, dt=0.1):
     
     # return None  # Return None if goal is unreachable
 
-def lattice_planner(start, goal, max_steps=100, max_steering_angle=np.radians(30)):
+def lattice_planner(start, goal, target_speed, max_steps=100, max_steering_angle=np.radians(30)):
     """Lattice planner using A* with travel distance as cost."""
     queue = []
     heappush(queue, (0, start[0], start[1], start[2], 0, []))  # (priority, x, y, theta, cost_so_far, path)
@@ -83,7 +84,7 @@ def lattice_planner(start, goal, max_steps=100, max_steering_angle=np.radians(30
             return path
         
         for steering_angle in np.linspace(-max_steering_angle, max_steering_angle, 3):
-            new_x, new_y, new_theta = car_model(x, y, theta, 3, steering_angle)  # Velocity fixed at 3 m/s
+            new_x, new_y, new_theta = car_model(x, y, theta, target_speed, steering_angle)  # Velocity fixed at 3 m/s
             step_distance = np.sqrt((new_x - x)**2 + (new_y - y)**2)  # Distance traveled in this step
             new_cost = cost_so_far + step_distance  # Accumulate distance
             
@@ -99,8 +100,8 @@ def lattice_planner(start, goal, max_steps=100, max_steering_angle=np.radians(30
     
     return None  # No valid path found
 
-# Main function to run the Prius
-def run_prius(n_steps=1000, render=False, goal=True, obstacles=True):
+
+def run_prius(n_steps=1000, render=False):
     robots = [
         BicycleModel(
             urdf='prius.urdf',
@@ -114,109 +115,131 @@ def run_prius(n_steps=1000, render=False, goal=True, obstacles=True):
             facing_direction='-x'
         )
     ]
-    env: UrdfEnv = UrdfEnv(
-        dt=0.01, robots=robots, render=render
-    )
-
-
+    
+    env = UrdfEnv(dt=0.01, robots=robots, render=render)
     pos0 = np.array([0, 0, 0])  # Initial position
-    goal_position = np.array([5, 0, 0])  # Goal position
-    ob = env.reset(pos=pos0) # set the car in the env
+    goal_position = np.array([10, 5, 0])  # Goal position
+    ob = env.reset(pos=pos0)
+    
+    target_speed = 5.0  # Fixed target speed
+    print("Planning path...")
+    path = lattice_planner(pos0, goal_position, target_speed)
+    print("Path: ", path)
 
-    print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
-    # Plan path using lattice planner
-    path = lattice_planner(pos0, goal_position)
-    print("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB")
-
-
+    
     if path is None:
         print("No valid path found.")
         return
+
+    for idx, target in enumerate(path):
+        marker_dict = {
+            "type": "sphere",
+            "geometry": {
+                "position": [float(target[0]), float(target[1]), float(1.0)],  # Cast to float
+                "radius": float(0.05)  # Cast to float
+            },
+            "rgba": [float(0.3), float(0.5), float(0.6), float(1.0)],  # Cast to float
+        }
+        sphere_marker = SphereObstacle(name=f"sphere_marker_{idx}", content_dict=marker_dict)
+        env.add_obstacle(sphere_marker)
     
-    print(f"Initial observation : {ob}")
-    ob = ob[0]
+        
+    
+    
+    current_state = ob[0]['robot_0']['joint_state']['position']
     history = []
     
-    # Execute the path
-    print("Executing path -------------------------------------------------------------------------------------------------------------")
-    print("Path: ", path)
-    print(len(path))
-
+    print("Executing path...")
     
-    
-    goal = False
-    while goal == False:
-    # for step in range(n_steps):
-        # Get current position from observation
-        path_goal = path[0]
-       
-        current_state = ob['robot_0']['joint_state']['position']
-        # Replan path
-        # path = lattice_planner(current_state, goal_position)
-        print(path_goal)
-        print(current_state)
-        if path is None:
-            print("No valid path found. Stopping simulation.")
-            goal = True
-            break
-        
-        # Execute only the first step of the newly planned path
-        if len(path) > 0:
-            print("a")
-            next_target = path[0]
-            action = np.array([3.0, next_target[2]])  # Constant speed, follow steering angle to next point
-        else:
-            print("b")
-            action = np.array([0.0, 0.0])  # Stop if no further path
+    for next_target in path:
+        target_reached = False
+        action = np.array([0.0, 0.0])  # [speed, steering angle]
         
         
-        # while current_state[0] != path_goal[0] and current_state[1] != path_goal[1]:
-        while np.sqrt((current_state[0] - path_goal[0])**2 + (current_state[1] - path_goal[1])**2) > 0.5:
-            # Step the environment
-            print(path_goal)
-            print(current_state)
-            print("Action: ", action)
+        # Gradually accelerate and adjust steering
+        while not target_reached:
+            # Compute direction to target
+            dx = next_target[0] - current_state[0]
+            dy = next_target[1] - current_state[1]
+            distance = np.sqrt(dx**2 + dy**2)
+            
+            # Adjust speed to target value
+            if action[0] < target_speed:
+                action[0] += 0.1  # Increment speed
+            
+            # Calculate desired steering angle
+            desired_theta = np.arctan2(dy, dx)
+            action[1] = desired_theta - current_state[2]  # Adjust to face target
+            
+            # Limit steering angle
+            action[1] = np.clip(action[1], -max_steering_angle, max_steering_angle)
+            
             ob, *_ = env.step(action)
             history.append(ob)
-
-        print(path)
-        path = path[1:]  # Remove the first point from the path
-         
-        # Print feedback
-        print(f"Step : Position = {ob['robot_0']['joint_state']['position']}")
-
-        # Check if near goal
-        if np.sqrt((goal_position[0] - current_state[0])**2 + (goal_position[1] - current_state[1])**2) < 0.1:
-            print("Goal reached!")
-            goal = True
-            break
+            
+            current_state = ob['robot_0']['joint_state']['position']
+            
+            # Check if target is reached within a tolerance
+            if distance < 0.5:  # 0.5 meters tolerance
+                target_reached = True
+        
+        print(f"Reached target: {next_target}")
     
+    print("Goal reached!")
+
+    plot_trajectory(path, goal_position, history)
     time.sleep(15)
-    env.close()
+    # env.close()
     return history
 
-    # for i in range(n_steps):
-    #     if path and goal == False:
-    #         target_position = path[i] if i < len(path) else path[-1]
-    #         print("Target position: ", target_position[2])
-            
-    #         action = np.array([3.0, target_position[2]])  # Use target theta as steering angle
-            
-    #         ob, *_ = env.step(action)
-    #         history.append(ob)
 
-    #         # path = lattice_planner(ob['robot_0']['joint_state']['position'], goal_position, env)
 
-           
-    #         # print("environment location   :   ",ob['robot_0']['joint_state']['position'])
-    #         if np.sqrt((goal_position[0] - ob['robot_0']['joint_state']['position'][0])**2 + (goal_position[1] - ob['robot_0']['joint_state']['position'][1])**2) < 0.5:
-    #             print("Goal reached!")
-    #             print(target_position)
-    #             print(((target_position[0] - ob['robot_0']['joint_state']['position'][0])**2 + (target_position[1] - ob['robot_0']['joint_state']['position'][1])**2)**0.5)
-    #             goal = True
-    #             break
-    # env.close()
-    # return history
+import matplotlib.pyplot as plt
+
+def plot_trajectory(path, goal_position, history):
+    """
+    Plots the trajectory of the car and the goal position.
+    
+    Parameters:
+    - path: List of (x, y, theta) tuples representing the car's trajectory.
+    - goal_position: (x, y, theta) tuple representing the goal position.
+    """
+    hx = np.array([ob['robot_0']['joint_state']['position'][0] for ob in history])
+    hy = np.array([ob['robot_0']['joint_state']['position'][1] for ob in history])
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(hx, hy, label="Trajectory", marker='o', linestyle='-', color='orange', markersize=5)
+
+    path = np.array(path)
+    
+    # Extract x and y coordinates
+    x = path[:, 0]
+    y = path[:, 1]
+    
+    # plt.figure(figsize=(10, 6))
+    
+    # Plot the trajectory
+    plt.plot(hx[0], hy[0], label="Trajectory", marker='o', linestyle='-', color='blue', markersize=5)
+    plt.plot(x, y, label="Trajectory", marker='o', linestyle='-', color='blue', markersize=5)
+    
+    # Mark the goal position
+    plt.scatter(goal_position[0], goal_position[1], color='red', label="Goal", s=100, marker='*')
+    
+    # Plot the starting point
+    plt.scatter(hx[0], hy[0], color='green', label="Start", s=100, marker='D')
+    
+    # Add labels and title
+    plt.xlabel("X Position (m)")
+    plt.ylabel("Y Position (m)")
+    plt.title("Car Trajectory")
+    plt.legend()
+    plt.grid(True)
+    plt.axis('equal')  # Keep the scale of x and y the same for better visualization
+    
+    # Show plot
+    plt.show()
+
+
 
 if __name__ == "__main__":
     run_prius(render=True)
