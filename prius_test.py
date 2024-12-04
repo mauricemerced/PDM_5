@@ -1,124 +1,20 @@
 import numpy as np
 from urdfenvs.urdf_common.urdf_env import UrdfEnv
-from urdfenvs.urdf_common.bicycle_model import BicycleModel
-from collections import deque
-from heapq import heappush, heappop
+
 import time
 from mpscenes.obstacles.sphere_obstacle import SphereObstacle
 
-# Car parameters
-L = 2.5  # Length of the car (in meters)
-max_steering_angle = np.radians(30)  # Maximum steering angle (in radians)
+from analysis import plot_trajectory
+from motion_primitive.lattice import lattice_planner
 
-def heuristic(x, y, goal):
-    """Euclidean distance as a heuristic."""
-    return np.sqrt((goal[0] - x)**2 + (goal[1] - y)**2)
+from car_data import L, max_steering_angle, robots
 
-# Lattice Planner Helper Functions
-def is_within_bounds(x, y, grid_width=20, grid_height=20):
-    """Check if the (x, y) position is within grid bounds."""
-    return 0 <= x < grid_width and 0 <= y < grid_height
-
-def is_collision_free(x, y):
-    """Check if the given (x, y) position is free of obstacles using the environment."""
-    # This is a placeholder 
-    # Use environment's methods to check the current position in the simulation.
-    return True
-
-def car_model(x, y, theta, v, steering_angle, dt=0.25):
-    """Car dynamics model (bicycle model)."""
-    if steering_angle != 0:
-        # R = L / np.tan(steering_angle)  # Turning radius
-        # dtheta = v / R
-        dtheta = v / L * np.tan(steering_angle)
-    else:
-        dtheta = 0 #go straigth
-
-    dx = v * np.cos(theta)
-    dy = v * np.sin(theta)
+def run_prius(robot, n_steps=1000, render=False):
     
-    return x + dx * dt, y + dy * dt, theta + dtheta * dt
-
-# def lattice_planner(start, goal, env: UrdfEnv, max_steps=100, max_steering_angle=np.radians(30)):
-    # """Lattice planner using BFS with Reeds-Shepp motion primitives."""
-    # queue = deque([(start[0], start[1], start[2], 0, [])])  # (x, y, theta, cost, path)
-    # visited = set()
-    # visited.add((start[0], start[1], start[2]))
-    
-    # while queue:
-    #     x, y, theta, cost, path = queue.popleft()
-    #     print(x,y)
-        
-    #     # if goal[0] - 0.01 <= x <= goal[0] + 0.01 and goal[1] - 0.01 <= y <= goal[1] + 0.01:  # Goal reached
-    #     if x == goal[0] and y == goal[1]:
-    #         return path
-        
-    #     # Generate possible next steps using Reeds-Shepp-like motion primitives
-    #     for steering_angle in np.linspace(-max_steering_angle, max_steering_angle, 3):  # 5 different steering angles
-    #         new_x, new_y, new_theta = car_model(x, y, theta, 3, steering_angle)  # Assuming constant speed
-    #         new_cost = cost + 1  # Simplified cost function (just number of steps)
-            
-    #         # Check if the new position is collision-free and not visited
-    #         if is_collision_free(new_x, new_y, env) and (new_x, new_y, new_theta) not in visited:
-    #             visited.add((new_x, new_y, new_theta))
-    #             new_path = path + [(new_x, new_y, new_theta)]
-                # queue.append((new_x, new_y, new_theta, new_cost, new_path))
-                
-                # if new_cost > max_steps:
-                #     return None  # Return None if no solution is found within max_steps
-    
-    # return None  # Return None if goal is unreachable
-
-def lattice_planner(start, goal, target_speed, max_steps=100, max_steering_angle=np.radians(30)):
-    """Lattice planner using A* with travel distance as cost."""
-    queue = []
-    heappush(queue, (0, start[0], start[1], start[2], 0, []))  # (priority, x, y, theta, cost_so_far, path)
-    visited = set()
-    visited.add((start[0], start[1], start[2]))
-    
-    while queue:
-        _, x, y, theta, cost_so_far, path = heappop(queue)
-        
-        # Goal check with tolerance
-        if np.sqrt((goal[0] - x)**2 + (goal[1] - y)**2) < 0.1:
-            return path
-        
-        for steering_angle in np.linspace(-max_steering_angle, max_steering_angle, 3):
-            new_x, new_y, new_theta = car_model(x, y, theta, target_speed, steering_angle)  # Velocity fixed at 3 m/s
-            step_distance = np.sqrt((new_x - x)**2 + (new_y - y)**2)  # Distance traveled in this step
-            new_cost = cost_so_far + step_distance  # Accumulate distance
-            
-            if is_collision_free(new_x, new_y) and (new_x, new_y, new_theta) not in visited:
-                visited.add((new_x, new_y, new_theta))
-                new_path = path + [(new_x, new_y, new_theta)]
-                priority = new_cost + heuristic(new_x, new_y, goal)  # A* priority
-                
-                heappush(queue, (priority, new_x, new_y, new_theta, new_cost, new_path))
-                
-                if len(new_path) > max_steps:
-                    return None  # Fail if path exceeds maximum allowed steps
-    
-    return None  # No valid path found
-
-
-def run_prius(n_steps=1000, render=False):
-    robots = [
-        BicycleModel(
-            urdf='prius.urdf',
-            mode="vel",
-            scaling=0.3,
-            wheel_radius=0.31265,
-            wheel_distance=0.494,
-            spawn_offset=np.array([-0.435, 0.0, 0.05]),
-            actuated_wheels=['front_right_wheel_joint', 'front_left_wheel_joint', 'rear_right_wheel_joint', 'rear_left_wheel_joint'],
-            steering_links=['front_right_steer_joint', 'front_left_steer_joint'],
-            facing_direction='-x'
-        )
-    ]
     
     env = UrdfEnv(dt=0.01, robots=robots, render=render)
     pos0 = np.array([0, 0, 0])  # Initial position
-    goal_position = np.array([10, 5, 0])  # Goal position
+    goal_position = np.array([-10, -1, 0])  # Goal position
     ob = env.reset(pos=pos0)
     
     target_speed = 5.0  # Fixed target speed
@@ -150,10 +46,10 @@ def run_prius(n_steps=1000, render=False):
     history = []
     
     print("Executing path...")
-    
+    action = np.array([0.0, 0.0])
     for next_target in path:
         target_reached = False
-        action = np.array([0.0, 0.0])  # [speed, steering angle]
+          # [speed, steering angle]
         
         
         # Gradually accelerate and adjust steering
@@ -194,52 +90,7 @@ def run_prius(n_steps=1000, render=False):
 
 
 
-import matplotlib.pyplot as plt
-
-def plot_trajectory(path, goal_position, history):
-    """
-    Plots the trajectory of the car and the goal position.
-    
-    Parameters:
-    - path: List of (x, y, theta) tuples representing the car's trajectory.
-    - goal_position: (x, y, theta) tuple representing the goal position.
-    """
-    hx = np.array([ob['robot_0']['joint_state']['position'][0] for ob in history])
-    hy = np.array([ob['robot_0']['joint_state']['position'][1] for ob in history])
-
-    plt.figure(figsize=(10, 6))
-    plt.plot(hx, hy, label="Trajectory", marker='o', linestyle='-', color='orange', markersize=5)
-
-    path = np.array(path)
-    
-    # Extract x and y coordinates
-    x = path[:, 0]
-    y = path[:, 1]
-    
-    # plt.figure(figsize=(10, 6))
-    
-    # Plot the trajectory
-    plt.plot(hx[0], hy[0], label="Trajectory", marker='o', linestyle='-', color='blue', markersize=5)
-    plt.plot(x, y, label="Trajectory", marker='o', linestyle='-', color='blue', markersize=5)
-    
-    # Mark the goal position
-    plt.scatter(goal_position[0], goal_position[1], color='red', label="Goal", s=100, marker='*')
-    
-    # Plot the starting point
-    plt.scatter(hx[0], hy[0], color='green', label="Start", s=100, marker='D')
-    
-    # Add labels and title
-    plt.xlabel("X Position (m)")
-    plt.ylabel("Y Position (m)")
-    plt.title("Car Trajectory")
-    plt.legend()
-    plt.grid(True)
-    plt.axis('equal')  # Keep the scale of x and y the same for better visualization
-    
-    # Show plot
-    plt.show()
-
 
 
 if __name__ == "__main__":
-    run_prius(render=True)
+    run_prius(robots, render=True)
