@@ -5,7 +5,7 @@ import time
 from mpscenes.obstacles.sphere_obstacle import SphereObstacle
 
 from analysis import plot_trajectory
-from motion_primitive.lattice import lattice_planner
+from motion_primitive.lattice import lattice_planner, plan_single_target
 
 from car_data import L, max_steering_angle, robots
 
@@ -17,10 +17,12 @@ def run_prius(robot, n_steps=1000, render=False):
     pos0 = np.array([0, 0, 0])  # Initial position
     goal_position = np.array([-10, -1, 0])  # Goal position
     ob = env.reset(pos=pos0)
+    targets = [(5, 5), (10, 10), (15, 12), (20, 8), (25, 5)]  # Example waypoints
     
     target_speed = 5.0  # Fixed target speed
     print("Planning path...")
-    path = lattice_planner(pos0, goal_position, target_speed, env)
+    # path = lattice_planner(pos0, targets, target_speed, env)
+    path = plan_single_target(pos0, goal_position, target_speed, env)
     print("Path: ", path)
 
     # Printing the Path:
@@ -36,7 +38,7 @@ def run_prius(robot, n_steps=1000, render=False):
 
     previous_steering_angle = 0.0
 
-    # Adding obstacles / markers in path
+    # Visualize targets and path adding markers in path
     for idx, target in enumerate(path):
         marker_dict = {
             "type": "sphere",
@@ -85,11 +87,12 @@ def run_prius(robot, n_steps=1000, render=False):
             # Steering control: Limit steering angle
             # action[1] = np.clip(action[1], -max_steering_angle, max_steering_angle)
             steering_error = desired_theta - current_state[2] # Adjust to face target
-            action[1] = np.clip(kp_steering * steering_error, -max_steering_angle, max_steering_angle)
+            new_steering_angle = kp_steering * steering_error
+            new_steering_angle  = np.clip(kp_steering * steering_error, -max_steering_angle, max_steering_angle)
 
             # Smooth steering to prevent abrupt changes
             max_steering_change = np.radians(5)  # Limit steering angle change per step
-            delta_steering = action[1] - previous_steering_angle
+            delta_steering = new_steering_angle - previous_steering_angle
             action[1] = previous_steering_angle + np.clip(delta_steering, -max_steering_change, max_steering_change)
             previous_steering_angle = action[1]
             

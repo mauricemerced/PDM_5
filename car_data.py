@@ -4,7 +4,7 @@ from urdfenvs.urdf_common.bicycle_model import BicycleModel
 
 # Car parameters
 L = 2.5  # Length of the car (in meters)
-
+max_speed = 3.0
 max_steering_angle = np.radians(30)  # Maximum steering angle (in radians)
 
 

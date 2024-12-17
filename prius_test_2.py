@@ -1,6 +1,6 @@
 import argparse
 from motion_primitive.lattice import lattice_planner
-from car_data import max_speed
+from car_data import max_speed, L, max_steering_angle, robots
 
 def run_prius(environment_module, render=True):
     """
