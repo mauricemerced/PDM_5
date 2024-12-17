@@ -8,6 +8,7 @@ L = 2.5  # Length of the car (in meters)
 max_steering_angle = np.radians(25)  # Maximum steering angle (in radians)
 
 target_speed = 5.0  # Fixed target speed 5m/s ~ 20km/h
+n_points = 5
 
 robots = [
         BicycleModel(

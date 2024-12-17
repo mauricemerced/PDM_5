@@ -2,12 +2,13 @@ import numpy as np
 from collections import deque
 from heapq import heappush, heappop
 from car_data import L, max_steering_angle, car_model
-
+from urdfenvs.urdf_common.urdf_env import UrdfEnv
+from car_data import L, max_steering_angle, robots, target_speed, n_points
+import itertools
 
 def heuristic(x, y, goal):
     """Euclidean distance as a heuristic."""
     return np.sqrt((goal[0] - x)**2 + (goal[1] - y)**2)
-
 
 
 def is_collision_free(x, y):
@@ -16,46 +17,96 @@ def is_collision_free(x, y):
     # Use environment's methods to check the current position in the simulation.
     return True
 
+def potential_trajectories(robot , render_):
+    """
+    Simulates potential trajectories for the prius based on various steering angles.
 
+    Args:
+        robot: The robot model used in the environment.
+        render_: Boolean flag to render the environment visually.
 
+    Returns:
+        lattice_trajectories: A list of tuples where each tuple contains:
+            - The target steering angle.
+            - The simulated trajectory as a list of observations.
 
+    Functionality:
+        - Resets the environment for each steering angle.
+        - Simulates the robot's motion under constant speed and specific steering inputs.
+        - Records the trajectory of the robot for each steering angle.
+    """
+    DT = 0.005
+    n_seconds=1.
 
-def lattice_planner(start, goal, target_speed, max_steps=100, max_steering_angle=max_steering_angle):
-    """Lattice planner using A* with travel distance as cost."""
-    queue = []
-    heappush(queue, (0, start[0], start[1], start[2], 0, [], []))  # (priority, x, y, theta, cost_so_far, path)
-    visited = set()
-    visited.add((start[0], start[1], start[2]))
+    env = UrdfEnv(dt=0.005, robots=robots, render=render_)
+   
+    action = np.array([1., 0])
+  
+    pos0 = np.array([0, 0, 0])
+    ob, *_  = env.reset(pos=pos0)
+
+    points = []
+
+    steering_angles = np.linspace(-np.degrees(max_steering_angle), np.degrees(max_steering_angle), n_points).tolist()
     
-    while queue:
-        _, x, y, theta, cost_so_far, path, lattice = heappop(queue)
+    lattice_trajectories = []
+
+    for target_angle in steering_angles:
+        print(target_angle, " ---------------------------------------------------------------")
+        speed = ob['robot_0']['joint_state']['forward_velocity'][0]#1
+        action = np.array([1., 0])
+        trajectory = []
+        ob, *_  = env.reset(pos=pos0)  # Reset environment for each steering angle
+
+        end_time: Optional[float] = None
+        state: int = 1
+
+        for step in itertools.count(1):
+            ob, *_ = env.step(action)
+
+            if state == 1:
+                if ob['robot_0']['joint_state']['forward_velocity'][0] >= target_speed:
+                    print("speed reached")
+                    state = 2
+                else:
+                    action[0] += 0.05
+
+            if state == 2:
+                action[0] = target_speed
+                if target_angle == -25 and abs(ob['robot_0']['joint_state']['steering']) < abs(np.radians(-25)):
+                    action[1] = -1.25
+                elif target_angle == -12.5 and abs(ob['robot_0']['joint_state']['steering']) < abs(np.radians(-12.5)):
+                    action[1] = -1.25
+                elif target_angle == 25 and abs(ob['robot_0']['joint_state']['steering']) < abs(np.radians(25)):
+                    action[1] = 1.25
+                elif target_angle == 12.5 and abs(ob['robot_0']['joint_state']['steering']) < abs(np.radians(12.5)):
+                    action[1] = 1.25
+                else:
+                    action[1] = 0
+
+                if abs(ob['robot_0']['joint_state']['steering']) >= abs(np.radians(target_angle)):
+                    state = 3
+                    end_time = step * DT + n_seconds
+
+            if state == 3:
+                action[0] = target_speed
+                action[1] = 0.  # Stop steering
+                trajectory.append(ob)
+
+                if step * DT > end_time:
+                    break
         
-        # Goal check with tolerance
-        if np.sqrt((goal[0] - x)**2 + (goal[1] - y)**2) < 0.1:
-            return path, lattice
         
-        for steering_angle in np.linspace(-max_steering_angle, max_steering_angle, 5):
-            new_x, new_y, new_theta = car_model(x, y, theta, target_speed, steering_angle)  
-            step_distance = np.sqrt((new_x - x)**2 + (new_y - y)**2)  # Distance traveled in this step
-            new_lattice = lattice + [steering_angle]
-            new_cost = cost_so_far + step_distance  # Accumulate distance
-            
-            if is_collision_free(new_x, new_y) and (new_x, new_y, new_theta) not in visited:
-                visited.add((new_x, new_y, new_theta))
-                new_path = path + [(new_x, new_y, new_theta)]
-                priority = new_cost + heuristic(new_x, new_y, goal)  # A* priority
-                
-                heappush(queue, (priority, new_x, new_y, new_theta, new_cost, new_path, new_lattice))
-                
-                if len(new_path) > max_steps:
-                    return None  # Fail if path exceeds maximum allowed steps
+        lattice_trajectories.append((target_angle, trajectory))
     
-    return None  # No valid path found
+
+    env.close()
+    return lattice_trajectories
 
 
 
 
-def lattice_planner2(start, goal, lattice_trajectories, max_steps=10000):
+def lattice_planner(start, goal, lattice_trajectories, max_steps=10000):
     """
     Optimized lattice planner using A* with travel distance as cost.
     This version uses only the last state of each trajectory for faster performance.

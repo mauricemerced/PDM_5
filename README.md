@@ -9,11 +9,12 @@ The system simulates a Prius robot navigating through an environment using a cus
 
 ## File Overview:
 - RRT.py
-- Lattice.py
+- Lattice.py #generates set of potential trajectories then detrmines the path with A* to the goal
 - .gitignore
 - analysis.py
 - car_data.py
 - prius_test.py
+- lattice_test.py #scenario with lattice
 
 
 ## Features
