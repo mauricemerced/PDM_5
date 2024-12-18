@@ -1,0 +1,20 @@
+from urdfenvs.urdf_environment import UrdfEnv
+from urdfenvs.sensors.obstacles import SphereObstacle
+
+def setup_environment():
+    """
+    Set up a URDF environment with dynamic obstacles.
+    """
+    env = UrdfEnv()
+    env.reset()
+
+    # Add dynamic obstacles (e.g., moving spheres)
+    env.add_obstacle(SphereObstacle(name="dynamic_obstacle", content_dict={
+        "type": "sphere",
+        "geometry": {"position": [5, 5, 0], "radius": 1.0},
+        "rgba": [0, 1, 0, 1],  # Green obstacle
+        "motion": {"type": "linear", "velocity": [0.5, 0, 0]}  # Moves in x-direction
+    }))
+
+    print("Dynamic obstacle environment setup complete.")
+    return env
