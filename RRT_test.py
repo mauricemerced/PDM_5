@@ -1,6 +1,7 @@
 # Save this code as RRT_test.py and run it directly.
 import numpy as np
 import matplotlib.pyplot as plt
+from car_data import car_model
 
 # Set a random seed for reproducibility (optional)
 np.random.seed(42)
@@ -10,17 +11,6 @@ L = 2.5  # wheelbase length of the car in meters
 max_steering_angle = np.radians(25)  # maximum steering angle in radians
 target_speed = 5.0  # target speed in m/s (~18 km/h)
 
-def car_model(x, y, theta, v, steering_angle, dt=0.5):
-    """Car dynamics model (bicycle model)."""
-    if steering_angle != 0:
-        dtheta = v / L * np.tan(steering_angle)
-    else:
-        dtheta = 0  # go straight
-
-    dx = v * np.cos(theta)
-    dy = v * np.sin(theta)
-    
-    return x + dx * dt, y + dy * dt, theta + dtheta * dt
 
 class Node:
     def __init__(self, x, y, theta, parent=None):
