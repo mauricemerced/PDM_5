@@ -1,20 +1,14 @@
 import numpy as np
 from car_data import robots, target_speed
-from RRT_test import rrt_star_with_tree  # Import the RRT function from RRT_test.py
-from lattice_test import ride_prius
-from prius_test import run_prius 
-from lattice import lattice_planner
-from analysis import plot_motion_trajectory
-
 import time
-import numpy as np
 from urdfenvs.urdf_common.urdf_env import UrdfEnv
-from car_data import robots, target_speed, max_steering_angle
+from car_data import robots, target_speed, max_steering_angle, car_model
 import math
-                                                                                                                                                                                  
+import matplotlib.pyplot as plt
 import pybullet as p
+from RRT_star import rrt_star_with_tree
 
-def ride_prius3(start, path):
+def ride_prius_rrt(start, path):
     env = UrdfEnv(dt=0.005, robots=robots, render=True)
     ob, *_ = env.reset(pos=np.array(start))
 
@@ -23,10 +17,10 @@ def ride_prius3(start, path):
     action = np.array([0.0, 0.0])
 
     # Initial camera setup parameters
-    cameraDistance = 3.0  # Distance behind the car
+    cameraDistance = 5.0  # Distance behind the car
     cameraYaw = 0         # Will be updated based on heading
     cameraPitch = -30      # Slight angle above the car
-    cameraHeight = 0    # Height of the camera above the ground
+    cameraHeight = 0.5    # Height of the camera above the ground
 
     for next_target in path:
         target_reached = False
@@ -50,9 +44,7 @@ def ride_prius3(start, path):
             current_state = ob['robot_0']['joint_state']['position']
 
             # Update camera after moving
-            # We assume current_heading is the direction the car is facing.
-            # Place camera behind the car:
-            # If the car faces current_heading, behind the car is opposite direction.
+            # Place camera behind the car based on current heading
             cam_x = current_state[0] - cameraDistance * math.cos(current_heading)
             cam_y = current_state[1] - cameraDistance * math.sin(current_heading)
             cam_z = cameraHeight
@@ -77,19 +69,12 @@ def ride_prius3(start, path):
     history_ends = 0
     return history, history_ends
 
-
-
-
 if __name__ == "__main__":
-    # First, generate lattice trajectories with run_prius
-    lattice_trajectories = run_prius(robots, render=False)
-    print("Lattice trajectories generated.")
-
-    # Define your start and goal states for RRT
+    # Define start and goal states (x, y, theta)
     start_rrt = (2.0, 2.0, 0.0)
     goal_rrt = (18.0, 18.0, 0.0)
 
-    # Run RRT to find a path
+    # Run RRT* to find a path
     path_rrt, tree = rrt_star_with_tree(start_rrt, goal_rrt, target_speed=target_speed)
 
     if path_rrt is None:
@@ -98,24 +83,8 @@ if __name__ == "__main__":
         print("RRT path found!")
         print("RRT Path:", path_rrt)
 
-        # Use the endpoint of the RRT path as the goal for lattice planning
-        # Assuming the last node in path_rrt is the goal the RRT reached
-        x, y, _ = path_rrt[-1]
-        start = (0, 0, 0)
-        goal = (x, y)
+        # Ride along the RRT* path directly
+        history, ends = ride_prius_rrt(start_rrt, path_rrt)
 
-        print("Planning path with lattice_planner2...")
-        path_lattice, lattice = lattice_planner2(start, goal, lattice_trajectories)
-
-        if path_lattice is None:
-            print("No valid lattice path found.")
-        else:
-            print("Lattice path found!")
-            print("Lattice Path:", path_lattice)
-            print("Lattice (steering angles):", lattice)
-
-            # Ride along the lattice path
-            history, ends = ride_prius3(start, path_lattice)
-
-            # Visualize the final motion
-            plot_motion_trajectory(goal, history, path_lattice)
+        # If you have a plotting function, you can plot this trajectory
+        # Or simply watch it in the simulation window.
