@@ -1,18 +1,20 @@
+import matplotlib.pyplot as plt
+import pybullet as p
+from RRT_star import rrt_star_with_tree
 import numpy as np
 from car_data import robots, target_speed
 import time
 from urdfenvs.urdf_common.urdf_env import UrdfEnv
 from car_data import robots, target_speed, max_steering_angle, car_model
 import math
-import matplotlib.pyplot as plt
-import pybullet as p
-from RRT_star import rrt_star_with_tree
+from environment_setup import load_environment
 
-def ride_prius_rrt(start, path):
-    env = UrdfEnv(dt=0.005, robots=robots, render=True)
-    ob, *_ = env.reset(pos=np.array(start))
+def ride_prius_rrt(loaded_env, start, path):
+    ob, *_ = loaded_env.reset(pos=np.array(start))
+    print("Initial observation:", ob)
 
     current_state = ob['robot_0']['joint_state']['position']
+    print(f"Starting position: {current_state}")
     history = []
     action = np.array([0.0, 0.0])
 
@@ -33,15 +35,23 @@ def ride_prius_rrt(start, path):
             if action[0] < target_speed:
                 action[0] += 0.1
 
-            # Compute desired heading
+            # Compute desired heading, apply steering control (clamped to max steering angle)
             desired_theta = math.atan2(dy, dx)
             current_heading = current_state[2]
             heading_error = (desired_theta - current_heading + math.pi) % (2 * math.pi) - math.pi
             action[1] = np.clip(heading_error, -max_steering_angle, max_steering_angle)
 
-            ob, *_ = env.step(action)
+            # Step the environment
+            ob, *_ = loaded_env.step(action)
             history.append(ob)
             current_state = ob['robot_0']['joint_state']['position']
+            
+            # Debug: Print current state, target, and action
+            print(f"Current State: {current_state}")
+            print(f"Moving towards target: {next_target}")
+            print(f"Distance to target: {distance}")
+            print(f"Heading error: {heading_error}")
+            print(f"Action applied: {action}")
 
             # Update camera after moving
             # Place camera behind the car based on current heading
@@ -65,11 +75,18 @@ def ride_prius_rrt(start, path):
         print(f"Reached target: {next_target}")
 
     print("Goal reached!")
-    env.close()
+    print("Closing environment...")
+    loaded_env.close()
     history_ends = 0
     return history, history_ends
 
 if __name__ == "__main__":
+    # Test environment selection
+    selected_env = "basic"  # Change this to 'basic', 'static', 'narrow', or 'dynamic'
+    print(f"Testing {selected_env} environment...")
+    loaded_env = load_environment(selected_env)
+    
+
     # Define start and goal states (x, y, theta)
     start_rrt = (2.0, 2.0, 0.0)
     goal_rrt = (18.0, 18.0, 0.0)
@@ -84,7 +101,14 @@ if __name__ == "__main__":
         print("RRT Path:", path_rrt)
 
         # Ride along the RRT* path directly
-        history, ends = ride_prius_rrt(start_rrt, path_rrt)
+        history, ends = ride_prius_rrt(loaded_env, start_rrt, path_rrt)
 
         # If you have a plotting function, you can plot this trajectory
         # Or simply watch it in the simulation window.
+
+        # Plot trajectory (if needed)
+        trajectory = [obs['robot_0']['joint_state']['position'][:2] for obs in history]
+        plt.plot(*zip(*path_rrt), 'g--', label="Planned Path")
+        plt.plot(*zip(*trajectory), 'b-', label="Car Path")
+        plt.legend()
+        plt.show()
