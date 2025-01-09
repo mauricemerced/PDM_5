@@ -35,26 +35,15 @@ def create_environment_with_static_obstacles(render=True, obstacles=True):
     has_obstacles = obstacles
 
     start_rrt = (2.0, 2.0, 0.0)
-    goal_rrt = (10.0,0.0, 0.0)
+    goal_rrt = (10.0, 0.0, 0.0)
 
     # Define static obstacles
     if obstacles:
-
-        print("Adding static obstacles...")
-        # env.add_obstacle(sphereObst2)           # Add a sphere 2
-        # env.add_obstacle(cylinder_obstacle)     # add a cylinder
-        # env.add_obstacle(sphereObst1)           # add a sphere 1
-        # env.add_obstacle(movable_obstacle)
-        # env.add_obstacle(urdfObst1)
-        # env.add_obstacle(dynamicSphereObst3)    # add a dynamic sphere 3
-        # env.add_obstacle(cylinder_obstacle)     # add a cylinder
-
         print("Adding static obstacles...")
         static_obstacles = [
             {"type": "sphere", "position": [5, 5, 0], "radius": 1.0},
             {"type": "sphere", "position": [12, 7, 0], "radius": 1.0},
             {"type": "cylinder", "position": [10, 10, 0], "radius": 1.5},
-            # {"type": "cylinder", "position": [20, 20, 0], "radius": 1.5},
             {"type": "cylinder", "position": [8, 3, 0], "radius": 1.5},
             {"type": "cylinder", "position": [10, 12, 0], "radius": 1.5},
             {"type": "cylinder", "position": [-10, 12, 0], "radius": 1.5},
@@ -142,7 +131,7 @@ def create_environment_with_outer_walls(render=True, wall_length=30, wall_thickn
 
     return env, has_obstacles, obstacle_dict, start_rrt, goal_rrt
 
-def create_static2_environment(render=True, obstacles=True):
+def create_random_static_environment(render=True, obstacles=True):
     """
     Creates a static environment with randomly placed obstacles within outer walls.
     """
@@ -231,7 +220,7 @@ def create_static2_environment(render=True, obstacles=True):
 
     return env, has_obstacles, obstacle_dict, start_rrt, goal_rrt
 
-def create_static3_environment(render=True, obstacles=True):
+def create_static2_environment(render=True, obstacles=True):
     """
     Creates a static environment with multiple sphere obstacles within outer walls.
     """
@@ -241,11 +230,9 @@ def create_static3_environment(render=True, obstacles=True):
     obstacle_dict = []  # Initialize obstacle dictionary
     has_obstacles = obstacles
 
-    # start_rrt = (2.0, 2.0, 0.0)
-    # goal_rrt = (10.0,0.0, 0.0)
-
-    start_rrt = (15.0, 15.0, 0.0)
-    goal_rrt = (2.0, 2.0, 0.0)
+    start_rrt = (-2.0, -2.0, 0.0)
+    goal_rrt = (15.0, 15.0, 0.0)
+    
 
     # Outer wall dimensions
     outer_wall_length = 30
@@ -397,10 +384,10 @@ def load_environment(environment_type, render=True):
     environments = {
         "basic": create_basic_environment,
         "static": create_environment_with_static_obstacles,
-        "static2": create_static2_environment,
+        "random": create_random_static_environment,
         "wall": create_environment_with_outer_walls,
+        "static2": create_static2_environment,
         "simple": create_simple_maze,
-        "static3": create_static3_environment,
         # "narrow": create_narrow_passage_environment,
         # "dynamic": create_dynamic_environment,
     }
@@ -410,8 +397,7 @@ def load_environment(environment_type, render=True):
     
     env, has_obstacles, obstacle_dict, start_rrt, goal_rrt = environments[environment_type](render=render)
     print(f"Environment loaded successfully. Obstacles: {has_obstacles}")
-    # min_corner, max_corner = find_boundingbox(car_urdf)  # Call the function to get the bounding box
-    # visualize_bounding_box(env, min_corner, max_corner)
+
 
     return env, has_obstacles, obstacle_dict, start_rrt, goal_rrt
 
@@ -419,7 +405,7 @@ def load_environment(environment_type, render=True):
 
 if __name__ == "__main__":
     # Test environment selection
-    selected_env = "simple"  # Change this to 'basic', 'static', 'static2' 'narrow', or 'dynamic'
+    selected_env = "simple"  # Change this to 'basic', 'static', 'wall', 'random', 'static2' or 'simple'
     print(f"Testing {selected_env} environment...")
     env, has_obstacles, obstacle_dict, start_rrt, goal_rrt = load_environment(selected_env)
     env.reset()
@@ -437,13 +423,3 @@ if __name__ == "__main__":
             env.step(default_action)  # Pass the action to step()
     except KeyboardInterrupt:
         print("Exiting simulation...")
-
-# if __name__ == "__main__":
-#     env = UrdfEnv(dt=0.005, robots=robots, render=True)
-#     ob, *_ = env.reset(pos=np.array([2.0, 2.0, 0.0]))
-#     action = np.array([5.0, 0.1])  # Set high velocity
-#     while True:
-#         env.step(action)
-
-
-
