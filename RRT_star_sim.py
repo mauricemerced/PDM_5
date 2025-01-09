@@ -1,13 +1,13 @@
 import matplotlib.pyplot as plt
 import pybullet as p
-from RRT_star import rrt_star_with_tree
+from RRT_star import rrt_star_with_tree, plot_tree
 import numpy as np
-from car_data import robots, target_speed
 import time
 from urdfenvs.urdf_common.urdf_env import UrdfEnv
-from car_data import robots, target_speed, max_steering_angle, car_model
+from car_data import target_speed, max_steering_angle
 import math
 from environment_setup import load_environment
+
 
 def ride_prius_rrt(loaded_env, start, path):
     ob, *_ = loaded_env.reset(pos=np.array(start))
@@ -47,11 +47,11 @@ def ride_prius_rrt(loaded_env, start, path):
             current_state = ob['robot_0']['joint_state']['position']
             
             # Debug: Print current state, target, and action
-            print(f"Current State: {current_state}")
-            print(f"Moving towards target: {next_target}")
-            print(f"Distance to target: {distance}")
-            print(f"Heading error: {heading_error}")
-            print(f"Action applied: {action}")
+            # print(f"Current State: {current_state}")
+            # print(f"Moving towards target: {next_target}")
+            # print(f"Distance to target: {distance}")
+            # print(f"Heading error: {heading_error}")
+            # print(f"Action applied: {action}")
 
             # Update camera after moving
             # Place camera behind the car based on current heading
@@ -82,17 +82,12 @@ def ride_prius_rrt(loaded_env, start, path):
 
 if __name__ == "__main__":
     # Test environment selection
-    selected_env = "basic"  # Change this to 'basic', 'static', 'narrow', or 'dynamic'
+    selected_env = "static2"  # Change this to 'basic', 'static', 'static2' 'narrow', or 'dynamic'
     print(f"Testing {selected_env} environment...")
-    loaded_env = load_environment(selected_env)
-    
-
-    # Define start and goal states (x, y, theta)
-    start_rrt = (2.0, 2.0, 0.0)
-    goal_rrt = (18.0, 18.0, 0.0)
+    env, has_obstacles, obstacle_dict, start_rrt, goal_rrt = load_environment(selected_env)
 
     # Run RRT* to find a path
-    path_rrt, tree = rrt_star_with_tree(start_rrt, goal_rrt, target_speed=target_speed)
+    path_rrt, tree = rrt_star_with_tree(env,has_obstacles, obstacle_dict, start_rrt, goal_rrt, target_speed=target_speed, grid_width=30, grid_height=30, max_iter=10000)
 
     if path_rrt is None:
         print("No path found by RRT!")
@@ -101,7 +96,9 @@ if __name__ == "__main__":
         print("RRT Path:", path_rrt)
 
         # Ride along the RRT* path directly
-        history, ends = ride_prius_rrt(loaded_env, start_rrt, path_rrt)
+        history, ends = ride_prius_rrt(env, start_rrt, path_rrt)
+
+        plot_tree(path_rrt, tree, obstacle_dict, start_rrt, goal_rrt, grid_width=30, grid_height=30)
 
         # If you have a plotting function, you can plot this trajectory
         # Or simply watch it in the simulation window.
