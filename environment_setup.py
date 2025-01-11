@@ -332,7 +332,7 @@ def create_simple_maze(render=True, obstacles=True):
     has_obstacles = obstacles
 
     start_rrt = (10.0, -10.0, 0.0)
-    goal_rrt = (2.0, 2.0, 0.0)
+    goal_rrt = (10.0, 10.0, 0.0)
 
     # Outer wall dimensions
     outer_wall_length = 30
@@ -388,13 +388,6 @@ def create_simple_maze(render=True, obstacles=True):
         })
         env.add_obstacle(maze_obstacle)
 
-        # # Add to obstacle dictionary
-        # obstacle_dict.append({
-        #     "x": float(obstacle["position"][0]),
-        #     "y": float(obstacle["position"][1]),
-        #     "radius": float(max(obstacle["length"], obstacle["width"]) / 2),
-        # })
-
         obstacle_dict.append({
             "x": float(obstacle["position"][0]),
             "y": float(obstacle["position"][1]),
@@ -404,7 +397,7 @@ def create_simple_maze(render=True, obstacles=True):
     
     return env, has_obstacles, obstacle_dict, start_rrt, goal_rrt
 
-def create_narrow_passage_environment(render=True, obstacles=True):
+def create_narrow_long_passage_environment(render=True, obstacles=True):
     """
     Creates a static environment with a simple narrow passage structure within outer walls.
     """
@@ -414,8 +407,8 @@ def create_narrow_passage_environment(render=True, obstacles=True):
     obstacle_dict = []  # Initialize obstacle dictionary
     has_obstacles = obstacles
 
-    start_rrt = (10.0, -10.0, 0.0)
-    goal_rrt = (2.0, 2.0, 0.0)
+    start_rrt = (10.0, -12.0, 0.0)
+    goal_rrt = (10.0, 12.0, 0.0)
 
     # Outer wall dimensions
     outer_wall_length = 30
@@ -446,19 +439,20 @@ def create_narrow_passage_environment(render=True, obstacles=True):
         obstacle_dict.append({
             "x": float(wall_dict["position"][0]),
             "y": float(wall_dict["position"][1]),
-            "radius": float(wall_dict["width"] / 2)  # Approximate wall thickness as radius
+            "width": wall_dict["width"],
+            "length": wall_dict["length"],
         })
 
     # Maze-specific inner obstacles
-    narrow_passage_obstacles = [
-        # {'position': [5.0, 0.0, 0.4], 'length': 10.0, 'width': 0.5},
-        # {'position': [-5.0, -5.0, 0.4], 'length': 8.0, 'width': 0.5},
-        {'position': [7.5, 7.5, 0.4], 'length': 0.5, 'width': 15.0}, # right
-        {'position': [-7.5, 0.0, 0.4], 'length': 0.5, 'width': 15.0}, # middle
-        {'position': [7.5, -7.5, 0.4], 'length': 0.5, 'width': 15.0}, # left 
+    maze_obstacles = [
+        {'position': [8.0, 0.0, 0.4], 'length': 20.0, 'width': 14}, # vertical right
+        {'position': [-8.0, 0.0, 0.4], 'length': 20.0, 'width': 14}, # vertical left
+        # {'position': [7.5, 7.5, 0.4], 'length': 0.5, 'width': 15.0}, # top
+        # {'position': [-7.5, 0.0, 0.4], 'length': 0.5, 'width': 15.0}, # middle
+        # {'position': [7.5, -7.5, 0.4], 'length': 0.5, 'width': 15.0}, # bottom 
     ]
 
-    for i, obstacle in enumerate(narrow_passage_obstacles):
+    for i, obstacle in enumerate(maze_obstacles):
         maze_obstacle = BoxObstacle(name=f"maze_wall_{i}", content_dict={
             'type': 'box',
             'geometry': {
@@ -470,11 +464,84 @@ def create_narrow_passage_environment(render=True, obstacles=True):
         })
         env.add_obstacle(maze_obstacle)
 
-        # Add to obstacle dictionary
         obstacle_dict.append({
             "x": float(obstacle["position"][0]),
             "y": float(obstacle["position"][1]),
-            "radius": float(max(obstacle["length"], obstacle["width"]) / 2),
+            "width": obstacle["width"],
+            "length": obstacle["length"],
+        })
+    
+    return env, has_obstacles, obstacle_dict, start_rrt, goal_rrt
+
+def create_narrow_passage_environment(render=True, obstacles=True):
+    """
+    Creates a static environment with a simple narrow passage structure within outer walls.
+    """
+    env = UrdfEnv(dt=0.005, robots=robots, render=render)
+    print("Environment initialized with robots.")
+
+    obstacle_dict = []  # Initialize obstacle dictionary
+    has_obstacles = obstacles
+
+    start_rrt = (10.0, -12.0, 0.0)
+    goal_rrt = (10.0, 12.0, 0.0)
+
+    # Outer wall dimensions
+    outer_wall_length = 30
+    wall_thickness = 0.1
+    wall_height = 0.8
+
+    # Add outer walls
+    outer_wall_obstacles_dicts = [
+        {'position': [outer_wall_length / 2.0, 0.0, 0.4], 'length': outer_wall_length, 'width': wall_thickness},
+        {'position': [0.0, outer_wall_length / 2.0, 0.4], 'length': wall_thickness, 'width': outer_wall_length},
+        {'position': [0.0, -outer_wall_length / 2.0, 0.4], 'length': wall_thickness, 'width': outer_wall_length},
+        {'position': [-outer_wall_length / 2.0, 0.0, 0.4], 'length': outer_wall_length, 'width': wall_thickness},
+    ]
+
+    for i, wall_dict in enumerate(outer_wall_obstacles_dicts):
+        wall_obstacle = BoxObstacle(name=f"wall_{i}", content_dict={
+            'type': 'box',
+            'geometry': {
+                'position': wall_dict['position'],
+                'width': wall_dict['length'],
+                'height': 0.8,
+                'length': wall_dict['width'],
+            }
+        })
+        env.add_obstacle(wall_obstacle)
+
+        # Add walls to the obstacle dictionary
+        obstacle_dict.append({
+            "x": float(wall_dict["position"][0]),
+            "y": float(wall_dict["position"][1]),
+            "width": wall_dict["width"],
+            "length": wall_dict["length"],
+        })
+
+    # Maze-specific inner obstacles
+    maze_obstacles = [
+        {'position': [8, 0.0, 0.4], 'length': 0.5, 'width': 14.0}, # middle
+        {'position': [-8, 0.0, 0.4], 'length': 0.5, 'width': 14.0}, # middle
+    ]
+
+    for i, obstacle in enumerate(maze_obstacles):
+        maze_obstacle = BoxObstacle(name=f"maze_wall_{i}", content_dict={
+            'type': 'box',
+            'geometry': {
+                'position': obstacle['position'],
+                'width': obstacle['length'],
+                'height': wall_height,
+                'length': obstacle['width'],
+            }
+        })
+        env.add_obstacle(maze_obstacle)
+
+        obstacle_dict.append({
+            "x": float(obstacle["position"][0]),
+            "y": float(obstacle["position"][1]),
+            "width": obstacle["width"],
+            "length": obstacle["length"],
         })
     
     return env, has_obstacles, obstacle_dict, start_rrt, goal_rrt
@@ -492,6 +559,7 @@ def load_environment(environment_type, render=True):
         "static2": create_static2_environment,
         "simple": create_simple_maze,
         "narrow": create_narrow_passage_environment,
+        "narrow_long": create_narrow_long_passage_environment,
         # "dynamic": create_dynamic_environment,
     }
 
@@ -547,7 +615,7 @@ def plot_environment(environment_type, obstacle_dict, start, goal, render=True, 
 
 if __name__ == "__main__":
     # Test environment selection
-    selected_env = "random"  # Change this to 'basic', 'static', 'wall', 'random', 'static2' or 'simple'
+    selected_env = "narrow"  # Change this to 'basic', 'static', 'wall', 'random', 'static2', 'narrow_long', 'narrow' or 'simple'
     print(f"Testing {selected_env} environment...")
     env, has_obstacles, obstacle_dict, start_rrt, goal_rrt = load_environment(selected_env)
     env.reset()
