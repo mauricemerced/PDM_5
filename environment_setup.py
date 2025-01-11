@@ -5,6 +5,9 @@ import numpy as np
 from car_data import robots, target_speed, max_steering_angle, car_model, find_boundingbox, car_urdf
 from mpscenes.obstacles.box_obstacle import BoxObstacle
 from visualization_utils import visualize_bounding_box
+import matplotlib
+matplotlib.use('Agg')  # Use a non-interactive backend
+import matplotlib.pyplot as plt
 
 
 def create_basic_environment(render=True):
@@ -19,7 +22,7 @@ def create_basic_environment(render=True):
     obstacle_dict = []
 
     start_rrt = (2.0, 2.0, 0.0)
-    goal_rrt = (10.0,10.0, 0.0)
+    goal_rrt = (6.0, 6.0, 0.0)
 
     return env, has_obstacles, obstacle_dict, start_rrt, goal_rrt
 
@@ -35,7 +38,7 @@ def create_environment_with_static_obstacles(render=True, obstacles=True):
     has_obstacles = obstacles
 
     start_rrt = (2.0, 2.0, 0.0)
-    goal_rrt = (10.0, 0.0, 0.0)
+    goal_rrt = (15.0, 10.0, 0.0)
 
     # Define static obstacles
     if obstacles:
@@ -95,38 +98,43 @@ def create_environment_with_outer_walls(render=True, wall_length=30, wall_thickn
     start_rrt = (2.0, 2.0, 0.0)
     goal_rrt = (3.0, 3.0, 0.0)
 
-    # Define outer walls (box obstacles)
-    outer_wall_obstacles = [
-        # Right wall (aligned vertically on the right edge)
-        {"type": "box", "position": [0.0, wall_length/ 2.0 , 0.4], "width": wall_thickness, "length": wall_length},
-        # Left wall (aligned vertically on the left edge)
-        {"type": "box", "position": [0.0, -wall_length/ 2.0 , 0.4], "width": wall_thickness, "length": wall_length},
-        # Top wall (aligned horizontally on the top edge)
-        {"type": "box", "position": [-wall_length / 2.0, 0.0, 0.4], "width": wall_length, "length": wall_thickness},
-        # Bottom wall (aligned horizontally on the bottom edge)
-        {"type": "box", "position": [wall_length / 2.0, 0.0, 0.4], "width": wall_length, "length": wall_thickness},
+    # Outer wall dimensions
+    outer_wall_length = 30
+    wall_thickness = 0.1
+
+    # Add outer walls
+    outer_wall_obstacles_dicts = [
+        {'position': [outer_wall_length / 2.0, 0.0, 0.4], 'length': outer_wall_length, 'width': wall_thickness},
+        {'position': [0.0, outer_wall_length / 2.0, 0.4], 'length': wall_thickness, 'width': outer_wall_length},
+        {'position': [0.0, -outer_wall_length / 2.0, 0.4], 'length': wall_thickness, 'width': outer_wall_length},
+        {'position': [-outer_wall_length / 2.0, 0.0, 0.4], 'length': outer_wall_length, 'width': wall_thickness},
     ]
 
-    # Add walls to the environment and obstacle dictionary
-    for i, wall in enumerate(outer_wall_obstacles):
-        box_obstacle = BoxObstacle(name=f"wall_{i}", content_dict={
+    for i, wall_dict in enumerate(outer_wall_obstacles_dicts):
+        wall_obstacle = BoxObstacle(name=f"wall_{i}", content_dict={
             'type': 'box',
             'geometry': {
-                'position': wall['position'],  # Center position of the wall
-                'width': wall['width'],       # Wall width (thickness)
-                'length': wall['length'],     # Wall length
-                'height': 1.0                 # Wall height (arbitrary, can be adjusted)
+                'position': wall_dict['position'],
+                'width': wall_dict['length'],
+                'height': 0.8,
+                'length': wall_dict['width'],
             }
         })
-        env.add_obstacle(box_obstacle)
-        print(f"Added wall at position: {wall['position']}")
+        env.add_obstacle(wall_obstacle)
 
-        # Add the wall to the obstacle dictionary for collision checking
+        print('Obstc_dict beofre obst dict wall appending:', obstacle_dict)
+        # Add walls to the obstacle dictionary
+        # obstacle_dict.append({
+        #     "x": float(wall_dict["position"][0]),
+        #     "y": float(wall_dict["position"][1]),
+        #     "radius": float(wall_dict["width"] / 2)  # Approximate wall thickness as radius
+        # })
+
         obstacle_dict.append({
-            "x": float(wall["position"][0]),
-            "y": float(wall["position"][1]),
-            "width": wall["width"],
-            "length": wall["length"],
+            "x": float(wall_dict["position"][0]),
+            "y": float(wall_dict["position"][1]),
+            "width": wall_dict["width"],
+            "length": wall_dict["length"],
         })
 
     return env, has_obstacles, obstacle_dict, start_rrt, goal_rrt
@@ -168,11 +176,12 @@ def create_random_static_environment(render=True, obstacles=True):
         })
         env.add_obstacle(wall_obstacle)
 
-        # Add walls to the obstacle dictionary
+
         obstacle_dict.append({
             "x": float(wall_dict["position"][0]),
             "y": float(wall_dict["position"][1]),
-            "radius": float(wall_dict["width"] / 2)  # Approximate wall thickness as radius
+            "width": wall_dict["width"],
+            "length": wall_dict["length"],
         })
 
 
@@ -216,7 +225,7 @@ def create_random_static_environment(render=True, obstacles=True):
                     }
                 })
                 env.add_obstacle(box_obstacle)
-                obstacle_dict.append({"x": float(x), "y": float(y), "radius": float(radius)})
+                obstacle_dict.append({"x": float(x), "y": float(y), "width":radius * 2, "length": radius * 2})
 
     return env, has_obstacles, obstacle_dict, start_rrt, goal_rrt
 
@@ -230,8 +239,8 @@ def create_static2_environment(render=True, obstacles=True):
     obstacle_dict = []  # Initialize obstacle dictionary
     has_obstacles = obstacles
 
-    start_rrt = (-2.0, -2.0, 0.0)
-    goal_rrt = (15.0, 15.0, 0.0)
+    start_rrt = (0.0, 0.0, 0.0)
+    goal_rrt = (10.0, 10.0, 0.0)
     
 
     # Outer wall dimensions
@@ -258,13 +267,22 @@ def create_static2_environment(render=True, obstacles=True):
         })
         env.add_obstacle(wall_obstacle)
 
+        print('Obstc_dict beofre obst dict wall appending:', obstacle_dict)
         # Add walls to the obstacle dictionary
+        # obstacle_dict.append({
+        #     "x": float(wall_dict["position"][0]),
+        #     "y": float(wall_dict["position"][1]),
+        #     "radius": float(wall_dict["width"] / 2)  # Approximate wall thickness as radius
+        # })
+
         obstacle_dict.append({
             "x": float(wall_dict["position"][0]),
             "y": float(wall_dict["position"][1]),
-            "radius": float(wall_dict["width"] / 2)  # Approximate wall thickness as radius
+            "width": wall_dict["width"],
+            "length": wall_dict["length"],
         })
 
+        print('Obstc_dict after wall insertions:', obstacle_dict)
     # Define obstacle positions and radii
     obstacles = [
     {"type": "cylinder", "position": [8, 3, 0], "radius": 1.5},
@@ -298,6 +316,8 @@ def create_static2_environment(render=True, obstacles=True):
                 obstacle_dict.append({"x": obs["position"][0], "y": obs["position"][1], "radius": obs["radius"]})
 
     has_obstacles = True
+
+    print(obstacle_dict)
 
     return env, has_obstacles, obstacle_dict, start_rrt, goal_rrt
             
@@ -343,7 +363,8 @@ def create_simple_maze(render=True, obstacles=True):
         obstacle_dict.append({
             "x": float(wall_dict["position"][0]),
             "y": float(wall_dict["position"][1]),
-            "radius": float(wall_dict["width"] / 2)  # Approximate wall thickness as radius
+            "width": wall_dict["width"],
+            "length": wall_dict["length"],
         })
 
     # Maze-specific inner obstacles
@@ -356,6 +377,88 @@ def create_simple_maze(render=True, obstacles=True):
     ]
 
     for i, obstacle in enumerate(maze_obstacles):
+        maze_obstacle = BoxObstacle(name=f"maze_wall_{i}", content_dict={
+            'type': 'box',
+            'geometry': {
+                'position': obstacle['position'],
+                'width': obstacle['length'],
+                'height': wall_height,
+                'length': obstacle['width'],
+            }
+        })
+        env.add_obstacle(maze_obstacle)
+
+        # # Add to obstacle dictionary
+        # obstacle_dict.append({
+        #     "x": float(obstacle["position"][0]),
+        #     "y": float(obstacle["position"][1]),
+        #     "radius": float(max(obstacle["length"], obstacle["width"]) / 2),
+        # })
+
+        obstacle_dict.append({
+            "x": float(obstacle["position"][0]),
+            "y": float(obstacle["position"][1]),
+            "width": obstacle["width"],
+            "length": obstacle["length"],
+        })
+    
+    return env, has_obstacles, obstacle_dict, start_rrt, goal_rrt
+
+def create_narrow_passage_environment(render=True, obstacles=True):
+    """
+    Creates a static environment with a simple narrow passage structure within outer walls.
+    """
+    env = UrdfEnv(dt=0.005, robots=robots, render=render)
+    print("Environment initialized with robots.")
+
+    obstacle_dict = []  # Initialize obstacle dictionary
+    has_obstacles = obstacles
+
+    start_rrt = (10.0, -10.0, 0.0)
+    goal_rrt = (2.0, 2.0, 0.0)
+
+    # Outer wall dimensions
+    outer_wall_length = 30
+    wall_thickness = 0.1
+    wall_height = 0.8
+
+    # Add outer walls
+    outer_wall_obstacles_dicts = [
+        {'position': [outer_wall_length / 2.0, 0.0, 0.4], 'length': outer_wall_length, 'width': wall_thickness},
+        {'position': [0.0, outer_wall_length / 2.0, 0.4], 'length': wall_thickness, 'width': outer_wall_length},
+        {'position': [0.0, -outer_wall_length / 2.0, 0.4], 'length': wall_thickness, 'width': outer_wall_length},
+        {'position': [-outer_wall_length / 2.0, 0.0, 0.4], 'length': outer_wall_length, 'width': wall_thickness},
+    ]
+
+    for i, wall_dict in enumerate(outer_wall_obstacles_dicts):
+        wall_obstacle = BoxObstacle(name=f"wall_{i}", content_dict={
+            'type': 'box',
+            'geometry': {
+                'position': wall_dict['position'],
+                'width': wall_dict['length'],
+                'height': 0.8,
+                'length': wall_dict['width'],
+            }
+        })
+        env.add_obstacle(wall_obstacle)
+
+        # Add walls to the obstacle dictionary
+        obstacle_dict.append({
+            "x": float(wall_dict["position"][0]),
+            "y": float(wall_dict["position"][1]),
+            "radius": float(wall_dict["width"] / 2)  # Approximate wall thickness as radius
+        })
+
+    # Maze-specific inner obstacles
+    narrow_passage_obstacles = [
+        # {'position': [5.0, 0.0, 0.4], 'length': 10.0, 'width': 0.5},
+        # {'position': [-5.0, -5.0, 0.4], 'length': 8.0, 'width': 0.5},
+        {'position': [7.5, 7.5, 0.4], 'length': 0.5, 'width': 15.0}, # right
+        {'position': [-7.5, 0.0, 0.4], 'length': 0.5, 'width': 15.0}, # middle
+        {'position': [7.5, -7.5, 0.4], 'length': 0.5, 'width': 15.0}, # left 
+    ]
+
+    for i, obstacle in enumerate(narrow_passage_obstacles):
         maze_obstacle = BoxObstacle(name=f"maze_wall_{i}", content_dict={
             'type': 'box',
             'geometry': {
@@ -388,7 +491,7 @@ def load_environment(environment_type, render=True):
         "wall": create_environment_with_outer_walls,
         "static2": create_static2_environment,
         "simple": create_simple_maze,
-        # "narrow": create_narrow_passage_environment,
+        "narrow": create_narrow_passage_environment,
         # "dynamic": create_dynamic_environment,
     }
 
@@ -397,15 +500,54 @@ def load_environment(environment_type, render=True):
     
     env, has_obstacles, obstacle_dict, start_rrt, goal_rrt = environments[environment_type](render=render)
     print(f"Environment loaded successfully. Obstacles: {has_obstacles}")
+    print(f"Plotting environment {env}")
+    plot_environment(environment_type, obstacle_dict, start_rrt, goal_rrt)
 
 
     return env, has_obstacles, obstacle_dict, start_rrt, goal_rrt
 
-    
+def plot_environment(environment_type, obstacle_dict, start, goal, render=True, grid_width=30, grid_height=30):
+    plt.figure(figsize=(10, 10))
+
+    # plot the obstacles
+    for idx, obs in enumerate(obstacle_dict):
+        label = f"Obstacle {idx + 1}"
+        if "radius" in obs: 
+            circle = plt.Circle((obs["x"], obs["y"]), obs["radius"], color='r', fill=True, alpha=0.5)
+            plt.gca().add_artist(circle)
+            plt.text(obs["x"], obs["y"], f"{idx + 1}", fontsize=8, ha='center', va='center', color='black')
+            # plt.gca().add_patch(circle)
+        elif "width" in obs and "length" in obs:  # Rectangular obstacle (walls)
+            # Calculate the bottom-left corner for the rectangle
+            bottom_left_x = obs["x"] - obs["width"] / 2
+            bottom_left_y = obs["y"] - obs["length"] / 2
+            rectangle = plt.Rectangle((bottom_left_x, bottom_left_y), obs["width"], obs["length"], 
+                                       color='g', fill=True, alpha=0.5)
+            plt.gca().add_artist(rectangle)
+            plt.text(obs["x"], obs["y"], f"{idx + 1}", fontsize=8, ha='center', va='center', color='black')
+            # plt.gca().add_patch(rectangle)
+
+    # Plot start and Goal
+    plt.plot(start[0], start[1], 'bo', label="Start")
+    plt.plot(goal[0], goal[1], 'ro', label="Goal")
+
+    plt.xlim(-grid_width/2, grid_width/2)
+    plt.ylim(-grid_height/2, grid_height/2)
+    plt.xlabel("X-axis")
+    plt.ylabel("Y-axis")
+    plt.title(f"{environment_type} plot")
+    plt.legend()
+    plt.grid(True)
+
+    # Save the plot instead of showing it
+    plt.savefig(f"{environment_type}.png")
+    print(f"Environment plot saved as '{environment_type}.png'")
+
+    plt.close()  # Close the figure to free memory
 
 if __name__ == "__main__":
     # Test environment selection
-    selected_env = "simple"  # Change this to 'basic', 'static', 'wall', 'random', 'static2' or 'simple'
+    selected_env = "random"  # Change this to 'basic', 'static', 'wall', 'random', 'static2' or 'simple'
     print(f"Testing {selected_env} environment...")
     env, has_obstacles, obstacle_dict, start_rrt, goal_rrt = load_environment(selected_env)
     env.reset()
